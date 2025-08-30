@@ -1,76 +1,161 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class Enemy2 : MonoBehaviour
 {
-    [SerializeField] float _visionDistance = 8f;
-    [SerializeField] float _speed = 3f;
-    [SerializeField] float _rotationInterval = 2f;
-    [SerializeField] Transform _player;
+    [SerializeField] private float _enemySpeed = 2f;
+    [SerializeField] private float _visionDistance = 10f;
+    [SerializeField] private float _patrolDuration = 3f;
+    [SerializeField] private Transform _target;
 
-    private Vector3 _currentDirection;
-    private float _rotationTimer;
+    private EnemyState _currentState;
+    private Vector3 _patrolPoint;
     private bool _isFollowing = false;
+    private float _patrolTimer = 0f;
 
     void Start()
     {
-        PickRandomDirection();
+        if (_target == null)
+        {
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+                _target = player.transform;
+        }
+
+        _patrolPoint = GetRandomPatrolPoint();
+        ChangeState(EnemyState.IDLE);
     }
 
     void Update()
     {
-        _rotationTimer -= Time.deltaTime;
-        if (_rotationTimer <= 0)
+        if (_target == null)
         {
-            PickRandomDirection();
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+                _target = player.transform;
+            else
+                return;
         }
+
+        switch (_currentState)
+        {
+            case EnemyState.IDLE:
+                Idle();
+                break;
+            case EnemyState.PATROLLING:
+                Patrolling();
+                break;
+            case EnemyState.FOLLOW:
+                Following();
+                break;
+        }
+    }
+
+    void Idle()
+    {
+        if (CanSeePlayer())
+        {
+            _isFollowing = true;
+            ChangeState(EnemyState.FOLLOW);
+        }
+    }
+
+    void Patrolling()
+    {
+        MoveTowards(_patrolPoint);
+
+        if (Vector3.Distance(transform.position, _patrolPoint) < 0.5f)
+            _patrolPoint = GetRandomPatrolPoint();
 
         if (CanSeePlayer())
         {
             _isFollowing = true;
+            ChangeState(EnemyState.FOLLOW);
         }
 
-        if (_isFollowing)
-        {
-            Vector3 dir = (_player.position - transform.position).normalized;
-            transform.position += dir * _speed * Time.deltaTime;
-            transform.forward = Vector3.Lerp(transform.forward, dir, Time.deltaTime * 5f);
-
-            if (Vector3.Distance(transform.position, _player.position) > _visionDistance * 1.5f)
-                _isFollowing = false;
-        }
-        else
-        {
-            transform.forward = Vector3.Lerp(transform.forward, _currentDirection, Time.deltaTime * 5f);
-        }
+        _patrolTimer -= Time.deltaTime;
+        if (_patrolTimer <= 0f)
+            ChangeState(EnemyState.IDLE);
     }
 
-    void PickRandomDirection()
+    void Following()
     {
-        _currentDirection = new Vector3(Random.Range(-1f, 1f), 0, Random.Range(-1f, 1f)).normalized;
-        _rotationTimer = _rotationInterval;
+        MoveTowards(_target.position);
+
+        float distanceToPlayer = _target != null ? Vector3.Distance(transform.position, _target.position) : Mathf.Infinity;
+        if (distanceToPlayer > _visionDistance * 1.5f || !CanSeePlayer())
+        {
+            _isFollowing = false;
+            _patrolTimer = _patrolDuration;
+            _patrolPoint = GetRandomPatrolPoint();
+            ChangeState(EnemyState.PATROLLING);
+        }
     }
 
+    void ChangeState(EnemyState newState)
+    {
+        _currentState = newState;
+        if (_currentState == EnemyState.PATROLLING)
+            _patrolTimer = _patrolDuration;
+    }
+
+    void MoveTowards(Vector3 destination)
+    {
+        Vector3 direction = (destination - transform.position).normalized;
+        direction.y = 0;
+
+        transform.position = Vector3.MoveTowards(transform.position, destination, _enemySpeed * Time.deltaTime);
+
+        if (direction != Vector3.zero)
+        {
+            Quaternion lookRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * 5f);
+        }
+    }
+
+    Vector3 GetRandomPatrolPoint()
+    {
+        Vector3 randomDir = Random.insideUnitSphere * 5f;
+        randomDir.y = 0;
+        return transform.position + randomDir;
+    }
     bool CanSeePlayer()
     {
-        Vector3 direction = (_player.position - transform.position).normalized;
-        Ray ray = new Ray(transform.position + Vector3.up * 1f, direction);
-        RaycastHit hit;
+        if (_target == null) return false;
 
-        if (Physics.Raycast(ray, out hit, _visionDistance))
+        Vector3 direction = (_target.position - transform.position).normalized;
+        float distanceToPlayer = Vector3.Distance(transform.position, _target.position);
+
+        if (distanceToPlayer <= _visionDistance)
         {
-            if (hit.collider.CompareTag("Player"))
-                return true;
+            Ray ray = new Ray(transform.position + Vector3.up * 1.5f, direction);
+            RaycastHit hit;
+
+            if (Physics.Raycast(ray, out hit, _visionDistance))
+            {
+                Debug.DrawLine(ray.origin, hit.point, Color.red);
+                if (hit.collider.CompareTag("Player"))
+                    return true;
+            }
         }
         return false;
     }
+
     void OnCollisionEnter(Collision collision)
     {
         if (collision.collider.CompareTag("Player"))
         {
             Destroy(collision.gameObject);
+            SceneManager.LoadScene("Level 1");
         }
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, _visionDistance);
     }
 
 
