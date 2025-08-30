@@ -2,18 +2,21 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+public enum EnemyState2
+{
+    IDLE,
+    PATROLLING,
+    FOLLOW,
+}
 
 public class Enemy2 : MonoBehaviour
 {
     [SerializeField] private float _enemySpeed = 2f;
     [SerializeField] private float _visionDistance = 10f;
-    [SerializeField] private float _patrolDuration = 3f;
+    [SerializeField] private float _rotationSpeed = 30f;
     [SerializeField] private Transform _target;
 
-    private EnemyState _currentState;
-    private Vector3 _patrolPoint;
-    private bool _isFollowing = false;
-    private float _patrolTimer = 0f;
+    private EnemyState2 _currentState;
 
     void Start()
     {
@@ -24,8 +27,7 @@ public class Enemy2 : MonoBehaviour
                 _target = player.transform;
         }
 
-        _patrolPoint = GetRandomPatrolPoint();
-        ChangeState(EnemyState.IDLE);
+        ChangeState(EnemyState2.IDLE);
     }
 
     void Update()
@@ -41,13 +43,13 @@ public class Enemy2 : MonoBehaviour
 
         switch (_currentState)
         {
-            case EnemyState.IDLE:
+            case EnemyState2.IDLE:
                 Idle();
                 break;
-            case EnemyState.PATROLLING:
+            case EnemyState2.PATROLLING:
                 Patrolling();
                 break;
-            case EnemyState.FOLLOW:
+            case EnemyState2.FOLLOW:
                 Following();
                 break;
         }
@@ -56,49 +58,34 @@ public class Enemy2 : MonoBehaviour
     void Idle()
     {
         if (CanSeePlayer())
-        {
-            _isFollowing = true;
-            ChangeState(EnemyState.FOLLOW);
-        }
+            ChangeState(EnemyState2.FOLLOW);
+        else
+            ChangeState(EnemyState2.PATROLLING);
     }
 
     void Patrolling()
     {
-        MoveTowards(_patrolPoint);
-
-        if (Vector3.Distance(transform.position, _patrolPoint) < 0.5f)
-            _patrolPoint = GetRandomPatrolPoint();
+        transform.Rotate(Vector3.up, _rotationSpeed * Time.deltaTime);
 
         if (CanSeePlayer())
-        {
-            _isFollowing = true;
-            ChangeState(EnemyState.FOLLOW);
-        }
-
-        _patrolTimer -= Time.deltaTime;
-        if (_patrolTimer <= 0f)
-            ChangeState(EnemyState.IDLE);
+            ChangeState(EnemyState2.FOLLOW);
     }
 
     void Following()
     {
+        if (_target == null) return;
+
         MoveTowards(_target.position);
 
-        float distanceToPlayer = _target != null ? Vector3.Distance(transform.position, _target.position) : Mathf.Infinity;
-        if (distanceToPlayer > _visionDistance * 1.5f || !CanSeePlayer())
-        {
-            _isFollowing = false;
-            _patrolTimer = _patrolDuration;
-            _patrolPoint = GetRandomPatrolPoint();
-            ChangeState(EnemyState.PATROLLING);
-        }
+        float distanceToPlayer = Vector3.Distance(transform.position, _target.position);
+
+        if (!CanSeePlayer() || distanceToPlayer > _visionDistance * 1.5f)
+            ChangeState(EnemyState2.PATROLLING);
     }
 
-    void ChangeState(EnemyState newState)
+    void ChangeState(EnemyState2 newState)
     {
         _currentState = newState;
-        if (_currentState == EnemyState.PATROLLING)
-            _patrolTimer = _patrolDuration;
     }
 
     void MoveTowards(Vector3 destination)
@@ -115,12 +102,6 @@ public class Enemy2 : MonoBehaviour
         }
     }
 
-    Vector3 GetRandomPatrolPoint()
-    {
-        Vector3 randomDir = Random.insideUnitSphere * 5f;
-        randomDir.y = 0;
-        return transform.position + randomDir;
-    }
     bool CanSeePlayer()
     {
         if (_target == null) return false;
@@ -130,16 +111,13 @@ public class Enemy2 : MonoBehaviour
 
         if (distanceToPlayer <= _visionDistance)
         {
-            Ray ray = new Ray(transform.position + Vector3.up * 1.5f, direction);
-            RaycastHit hit;
-
-            if (Physics.Raycast(ray, out hit, _visionDistance))
+            if (Physics.Raycast(transform.position + Vector3.up * 1.5f, direction, out RaycastHit hit, _visionDistance))
             {
-                Debug.DrawLine(ray.origin, hit.point, Color.red);
                 if (hit.collider.CompareTag("Player"))
                     return true;
             }
         }
+
         return false;
     }
 
@@ -157,6 +135,4 @@ public class Enemy2 : MonoBehaviour
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, _visionDistance);
     }
-
-
 }

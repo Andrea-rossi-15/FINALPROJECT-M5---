@@ -15,13 +15,14 @@ public class EnemyController : MonoBehaviour
 {
     [SerializeField] private float _enemySpeed = 2f;
     [SerializeField] private float _visionDistance = 10f;
-    [SerializeField] private float _patrolDuration = 3f;
     [SerializeField] private Transform _target;
+    [SerializeField] private float _patrolRadius = 5f;
+    [SerializeField] private float _patrolTimeout = 5f;
 
     private EnemyState _currentState;
     private Vector3 _patrolPoint;
-    private bool _isFollowing = false;
-    private float _patrolTimer = 0f;
+    private Vector3 _startPosition;
+    private float _patrolTimer;
 
     void Start()
     {
@@ -32,8 +33,10 @@ public class EnemyController : MonoBehaviour
                 _target = player.transform;
         }
 
+        _startPosition = transform.position;
         _patrolPoint = GetRandomPatrolPoint();
         ChangeState(EnemyState.IDLE);
+        _patrolTimer = 0f;
     }
 
     void Update()
@@ -45,13 +48,6 @@ public class EnemyController : MonoBehaviour
                 _target = player.transform;
             else
                 return;
-        }
-
-
-        if (CanSeePlayer() && !_isFollowing)
-        {
-            _isFollowing = true;
-            ChangeState(EnemyState.FOLLOW);
         }
 
         switch (_currentState)
@@ -71,28 +67,27 @@ public class EnemyController : MonoBehaviour
     void Idle()
     {
         if (CanSeePlayer())
-        {
-            _isFollowing = true;
             ChangeState(EnemyState.FOLLOW);
-        }
+        else
+            ChangeState(EnemyState.PATROLLING);
     }
 
     void Patrolling()
     {
-        MoveTowards(_patrolPoint);
-
-        if (Vector3.Distance(transform.position, _patrolPoint) < 0.5f)
-            _patrolPoint = GetRandomPatrolPoint();
-
         if (CanSeePlayer())
         {
-            _isFollowing = true;
             ChangeState(EnemyState.FOLLOW);
+            return;
         }
 
-        _patrolTimer -= Time.deltaTime;
-        if (_patrolTimer <= 0f)
-            ChangeState(EnemyState.IDLE);
+        _patrolTimer += Time.deltaTime;
+        MoveTowards(_patrolPoint);
+
+        if (Vector3.Distance(transform.position, _patrolPoint) < 0.5f || _patrolTimer > _patrolTimeout)
+        {
+            _patrolPoint = GetRandomPatrolPoint();
+            _patrolTimer = 0f;
+        }
     }
 
     void Following()
@@ -102,18 +97,21 @@ public class EnemyController : MonoBehaviour
         float distanceToPlayer = Vector3.Distance(transform.position, _target.position);
         if (!CanSeePlayer() || distanceToPlayer > _visionDistance * 1.5f)
         {
-            _isFollowing = false;
-            _patrolTimer = _patrolDuration;
             _patrolPoint = GetRandomPatrolPoint();
+            _patrolTimer = 0f;
             ChangeState(EnemyState.PATROLLING);
         }
+    }
+
+    Vector3 GetRandomPatrolPoint()
+    {
+        Vector2 randomCircle = Random.insideUnitCircle * _patrolRadius;
+        return _startPosition + new Vector3(randomCircle.x, 0, randomCircle.y);
     }
 
     void ChangeState(EnemyState newState)
     {
         _currentState = newState;
-        if (_currentState == EnemyState.PATROLLING)
-            _patrolTimer = _patrolDuration;
     }
 
     void MoveTowards(Vector3 destination)
@@ -130,27 +128,16 @@ public class EnemyController : MonoBehaviour
         }
     }
 
-    Vector3 GetRandomPatrolPoint()
-    {
-        Vector3 randomDir = Random.insideUnitSphere * 5f;
-        randomDir.y = 0;
-        return transform.position + randomDir;
-    }
-
     bool CanSeePlayer()
     {
         if (_target == null) return false;
 
-        Vector3 enemyEye = transform.position + Vector3.up * 1.2f;
-        Vector3 playerCenter = _target.position + Vector3.up * 1.2f;
-        Vector3 direction = (playerCenter - enemyEye).normalized;
-        float distanceToPlayer = Vector3.Distance(enemyEye, playerCenter);
+        Vector3 direction = (_target.position - transform.position).normalized;
+        float distanceToPlayer = Vector3.Distance(transform.position, _target.position);
 
         if (distanceToPlayer <= _visionDistance)
         {
-            Ray ray = new Ray(enemyEye, direction);
-            RaycastHit hit;
-            if (Physics.Raycast(ray, out hit, _visionDistance))
+            if (Physics.Raycast(transform.position + Vector3.up * 0.5f, direction, out RaycastHit hit, _visionDistance))
             {
                 if (hit.collider.CompareTag("Player"))
                     return true;
@@ -166,11 +153,5 @@ public class EnemyController : MonoBehaviour
             Destroy(collision.gameObject);
             SceneManager.LoadScene("Level 1");
         }
-    }
-
-    void OnDrawGizmosSelected()
-    {
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, _visionDistance);
     }
 }
