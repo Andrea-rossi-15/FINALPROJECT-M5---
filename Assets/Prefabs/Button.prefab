@@ -146,8 +146,8 @@ GameObject:
   - component: {fileID: 292531603905409215}
   - component: {fileID: 4003806360008277213}
   - component: {fileID: 2589807644656376349}
-  - component: {fileID: 1104288124336179328}
   - component: {fileID: 1286421423739493311}
+  - component: {fileID: 8137360561193404332}
   m_Layer: 0
   m_Name: Button
   m_TagString: Untagged
@@ -243,19 +243,6 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 7.8434644
   m_Center: {x: 0, y: 0, z: 0.44050097}
---- !u!114 &1104288124336179328
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4065210300604385032}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f603e17e41e754a64adb08af2e07835a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _messageUI: {fileID: 7850948999090584851}
 --- !u!54 &1286421423739493311
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -283,6 +270,20 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &8137360561193404332
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4065210300604385032}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 045f4ad84e58547ea882f6126626fa87, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _messageUI: {fileID: 1959746989291368986}
+  Wall: {fileID: 0}
 --- !u!1 &5589092309543915188
 GameObject:
   m_ObjectHideFlags: 0

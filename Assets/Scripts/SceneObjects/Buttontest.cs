@@ -1,26 +1,37 @@
 using System.Collections;
 using System.Collections.Generic;
-using TMPro;
-using Unity.VisualScripting;
 using UnityEngine;
 
-public class ButtonCanvas : MonoBehaviour
+public class Buttontest : MonoBehaviour
 {
     [SerializeField] GameObject _messageUI;
+    [SerializeField] GameObject Wall;
     private bool _isPlayerInside = false;
+    private bool _isWallActive = true;
 
+    // Start is called before the first frame update
     void Start()
     {
         _messageUI.SetActive(false);
     }
+
+    // Update is called once per frame
     void Update()
     {
-        if (_isPlayerInside = true && Input.GetKeyDown(KeyCode.E))
+        if (_isPlayerInside && (Input.GetKeyDown(KeyCode.E)) && _isWallActive)
         {
-            DoSomething();
+            Wall.SetActive(false);
+            _isWallActive = false;
+
+
+        }
+        else if (_isPlayerInside && (Input.GetKeyDown(KeyCode.E)) && _isWallActive == false)
+        {
+            Wall.SetActive(true);
+            _isWallActive = true;
+
         }
     }
-
     void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Player"))
@@ -29,7 +40,6 @@ public class ButtonCanvas : MonoBehaviour
             _messageUI.SetActive(true);
         }
     }
-
     void OnTriggerExit(Collider other)
     {
         if (other.CompareTag("Player"))
@@ -38,6 +48,4 @@ public class ButtonCanvas : MonoBehaviour
             _messageUI.SetActive(false);
         }
     }
-
-    public virtual void DoSomething() { }
 }

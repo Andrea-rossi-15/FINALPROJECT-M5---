@@ -1,123 +1,89 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 public enum EnemyState2
 {
     IDLE,
-    PATROLLING,
     FOLLOW,
 }
 
 public class Enemy2 : MonoBehaviour
 {
-    [SerializeField] private float _enemySpeed = 2f;
-    [SerializeField] private float _visionDistance = 10f;
-    [SerializeField] private float _rotationSpeed = 30f;
-    [SerializeField] private Transform _target;
+    [Header("Enemy Settings")]
+    public float _visionDistance = 8f;
+    public float _loseSightTime = 3f;
 
-    private EnemyState2 _currentState;
+    private Transform _player;
+    private NavMeshAgent _agent;
+    private Vector3 _startPos;
+    private float _loseSightTimer = 0f;
 
     void Start()
     {
-        if (_target == null)
-        {
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player != null)
-                _target = player.transform;
-        }
+        _agent = GetComponent<NavMeshAgent>();
+        _startPos = transform.position;
 
-        ChangeState(EnemyState2.IDLE);
+        GameObject p = GameObject.FindGameObjectWithTag("Player");
+        if (p != null) _player = p.transform;
     }
 
     void Update()
     {
-        if (_target == null)
-        {
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player != null)
-                _target = player.transform;
-            else
-                return;
-        }
+        if (_player == null) return;
 
-        switch (_currentState)
-        {
-            case EnemyState2.IDLE:
-                Idle();
-                break;
-            case EnemyState2.PATROLLING:
-                Patrolling();
-                break;
-            case EnemyState2.FOLLOW:
-                Following();
-                break;
-        }
-    }
+        float distance = Vector3.Distance(transform.position, _player.position);
 
-    void Idle()
-    {
-        if (CanSeePlayer())
-            ChangeState(EnemyState2.FOLLOW);
+        if (distance <= _visionDistance && _CanSeePlayer())
+        {
+            _FollowPlayer();
+        }
         else
-            ChangeState(EnemyState2.PATROLLING);
-    }
-
-    void Patrolling()
-    {
-        transform.Rotate(Vector3.up, _rotationSpeed * Time.deltaTime);
-
-        if (CanSeePlayer())
-            ChangeState(EnemyState2.FOLLOW);
-    }
-
-    void Following()
-    {
-        if (_target == null) return;
-
-        MoveTowards(_target.position);
-
-        float distanceToPlayer = Vector3.Distance(transform.position, _target.position);
-
-        if (!CanSeePlayer() || distanceToPlayer > _visionDistance * 1.5f)
-            ChangeState(EnemyState2.PATROLLING);
-    }
-
-    void ChangeState(EnemyState2 newState)
-    {
-        _currentState = newState;
-    }
-
-    void MoveTowards(Vector3 destination)
-    {
-        Vector3 direction = (destination - transform.position).normalized;
-        direction.y = 0;
-
-        transform.position = Vector3.MoveTowards(transform.position, destination, _enemySpeed * Time.deltaTime);
-
-        if (direction != Vector3.zero)
         {
-            Quaternion lookRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * 5f);
+            _ReturnToStart();
         }
     }
 
-    bool CanSeePlayer()
+    void _FollowPlayer()
     {
-        if (_target == null) return false;
+        _agent.SetDestination(_player.position);
 
-        Vector3 direction = (_target.position - transform.position).normalized;
-        float distanceToPlayer = Vector3.Distance(transform.position, _target.position);
-
-        if (distanceToPlayer <= _visionDistance)
+        if (_CanSeePlayer())
         {
-            if (Physics.Raycast(transform.position + Vector3.up * 1.5f, direction, out RaycastHit hit, _visionDistance))
+            _loseSightTimer = 0f;
+        }
+        else
+        {
+            _loseSightTimer += Time.deltaTime;
+            if (_loseSightTimer >= _loseSightTime)
             {
-                if (hit.collider.CompareTag("Player"))
-                    return true;
+                _loseSightTimer = 0f;
             }
         }
+    }
 
+    void _ReturnToStart()
+    {
+        if (Vector3.Distance(transform.position, _startPos) > 0.5f)
+        {
+            _agent.SetDestination(_startPos);
+        }
+        else
+        {
+            _agent.ResetPath();
+        }
+    }
+
+    bool _CanSeePlayer()
+    {
+        if (_player == null) return false;
+
+        Vector3 dir = (_player.position - transform.position).normalized;
+        if (Physics.Raycast(transform.position + Vector3.up * 0.5f, dir, out RaycastHit hit, _visionDistance))
+        {
+            return hit.collider.CompareTag("Player");
+        }
         return false;
     }
 
@@ -125,14 +91,13 @@ public class Enemy2 : MonoBehaviour
     {
         if (collision.collider.CompareTag("Player"))
         {
-            Destroy(collision.gameObject);
             SceneManager.LoadScene("Level 1");
         }
     }
 
     void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.red;
+        Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, _visionDistance);
     }
 }

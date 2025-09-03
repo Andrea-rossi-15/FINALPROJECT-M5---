@@ -6,82 +6,65 @@ using UnityEngine.SceneManagement;
 using UnityEngine.AI;
 public enum EnemyState
 {
-    IDLE,
     PATROLLING,
-    FOLLOW,
+    FOLLOWING,
 }
 
 public class EnemyController : MonoBehaviour
-{
-    [SerializeField] private float _enemySpeed = 2f;
-    [SerializeField] private float _visionDistance = 10f;
-    [SerializeField] private Transform _target;
-    [SerializeField] private float _patrolRadius = 5f;
-    [SerializeField] private float _patrolTimeout = 5f;
 
-    private EnemyState _currentState;
+{
+    [Header("Enemy Settings")]
+    public float _visionDistance = 10f;
+    public float _patrolRadius = 5f;
+    public float _patrolTimeout = 5f;
+    public float _loseSightTime = 3f;
+
+    private Transform _player;
+    private EnemyState _state = EnemyState.PATROLLING;
+    private Vector3 _startPos;
     private Vector3 _patrolPoint;
-    private Vector3 _startPosition;
     private float _patrolTimer;
+    private float _loseSightTimer = 0f;
+
+    private NavMeshAgent _agent;
 
     void Start()
     {
-        if (_target == null)
-        {
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player != null)
-                _target = player.transform;
-        }
+        _agent = GetComponent<NavMeshAgent>();
+        _startPos = transform.position;
 
-        _startPosition = transform.position;
+        GameObject p = GameObject.FindGameObjectWithTag("Player");
+        if (p != null) _player = p.transform;
+
         _patrolPoint = GetRandomPatrolPoint();
-        ChangeState(EnemyState.IDLE);
         _patrolTimer = 0f;
     }
 
     void Update()
     {
-        if (_target == null)
-        {
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player != null)
-                _target = player.transform;
-            else
-                return;
-        }
+        if (_player == null) return;
 
-        switch (_currentState)
+        switch (_state)
         {
-            case EnemyState.IDLE:
-                Idle();
-                break;
             case EnemyState.PATROLLING:
-                Patrolling();
+                Patrol();
                 break;
-            case EnemyState.FOLLOW:
-                Following();
+            case EnemyState.FOLLOWING:
+                Follow();
                 break;
         }
     }
 
-    void Idle()
-    {
-        if (CanSeePlayer())
-            ChangeState(EnemyState.FOLLOW);
-        else
-            ChangeState(EnemyState.PATROLLING);
-    }
-
-    void Patrolling()
+    void Patrol()
     {
         if (CanSeePlayer())
         {
-            ChangeState(EnemyState.FOLLOW);
+            _state = EnemyState.FOLLOWING;
             return;
         }
 
+        _agent.SetDestination(_patrolPoint);
         _patrolTimer += Time.deltaTime;
-        MoveTowards(_patrolPoint);
 
         if (Vector3.Distance(transform.position, _patrolPoint) < 0.5f || _patrolTimer > _patrolTimeout)
         {
@@ -90,67 +73,63 @@ public class EnemyController : MonoBehaviour
         }
     }
 
-    void Following()
+    void Follow()
     {
-        MoveTowards(_target.position);
+        _agent.SetDestination(_player.position);
 
-        float distanceToPlayer = Vector3.Distance(transform.position, _target.position);
-        if (!CanSeePlayer() || distanceToPlayer > _visionDistance * 1.5f)
+        if (CanSeePlayer())
         {
-            _patrolPoint = GetRandomPatrolPoint();
-            _patrolTimer = 0f;
-            ChangeState(EnemyState.PATROLLING);
+            _loseSightTimer = 0f;
+        }
+        else
+        {
+            _loseSightTimer += Time.deltaTime;
+            if (_loseSightTimer >= _loseSightTime)
+            {
+                _patrolPoint = GetRandomPatrolPoint();
+                _patrolTimer = 0f;
+                _state = EnemyState.PATROLLING;
+                _loseSightTimer = 0f;
+            }
         }
     }
 
     Vector3 GetRandomPatrolPoint()
     {
         Vector2 randomCircle = Random.insideUnitCircle * _patrolRadius;
-        return _startPosition + new Vector3(randomCircle.x, 0, randomCircle.y);
-    }
+        Vector3 point = _startPos + new Vector3(randomCircle.x, 0, randomCircle.y);
 
-    void ChangeState(EnemyState newState)
-    {
-        _currentState = newState;
-    }
-
-    void MoveTowards(Vector3 destination)
-    {
-        Vector3 direction = (destination - transform.position).normalized;
-        direction.y = 0;
-
-        transform.position = Vector3.MoveTowards(transform.position, destination, _enemySpeed * Time.deltaTime);
-
-        if (direction != Vector3.zero)
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(point, out hit, 2f, NavMesh.AllAreas))
         {
-            Quaternion lookRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * 5f);
+            return hit.position;
         }
+
+        return _startPos;
     }
 
     bool CanSeePlayer()
     {
-        if (_target == null) return false;
+        if (_player == null) return false;
 
-        Vector3 direction = (_target.position - transform.position).normalized;
-        float distanceToPlayer = Vector3.Distance(transform.position, _target.position);
+        Vector3 direction = (_player.position - transform.position).normalized;
+        float distance = Vector3.Distance(transform.position, _player.position);
 
-        if (distanceToPlayer <= _visionDistance)
+        if (distance <= _visionDistance)
         {
             if (Physics.Raycast(transform.position + Vector3.up * 0.5f, direction, out RaycastHit hit, _visionDistance))
             {
-                if (hit.collider.CompareTag("Player"))
-                    return true;
+                if (hit.collider.CompareTag("Player")) return true;
             }
         }
+
         return false;
     }
 
-    void OnCollisionEnter(Collision collision)
+    private void OnCollisionEnter(Collision collision)
     {
         if (collision.collider.CompareTag("Player"))
         {
-            Destroy(collision.gameObject);
             SceneManager.LoadScene("Level 1");
         }
     }
